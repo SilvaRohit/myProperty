@@ -1,30 +1,35 @@
-import database from "$lib/server/database/database";
-import { UnitRepository } from "$lib/server/repositories/unit/unitRepository";
-import { RoleRepository } from "$lib/server/repositories/role/RoleRepository";
-import { UserRepository } from "$lib/server/repositories/user/UserRepository";
-import { UnitService } from "$lib/server/services/unitService";
-import { PropertyService } from "$lib/server/services/propertyService";
-import { PropertyRepository } from "$lib/server/repositories/property/propertyRepository";
-import { UserService } from "$lib/server/services/userService";
-import { processAPIRequest } from "../../../middleware/apiResponse";
-import { json } from '@sveltejs/kit';
+import database from '$lib/server/database/database';
+import { UnitRepository } from '$lib/server/repositories/unit/unitRepository';
+import { PropertyRepository } from '$lib/server/repositories/property/propertyRepository';
+import { UnitService } from '$lib/server/services/unitService';
+import { PropertyService } from '$lib/server/services/propertyService';
+import { processAPIRequest } from '$middleware/apiResponse';
+import { json, type RequestEvent } from '@sveltejs/kit';
 
+export const POST = processAPIRequest(
+    async ({ request }: RequestEvent) => {
+        const data = await request.json();
+        const runner = database.createQueryRunner();
 
-const userRepository: UserRepository = new UserRepository(database.createQueryRunner());
-const roleRepository: RoleRepository = new RoleRepository(database.createQueryRunner());
-const userService: UserService = new UserService(userRepository, roleRepository);
-const propertyRepository: PropertyRepository = new PropertyRepository(database.createQueryRunner());
-const propertyService: PropertyService = new PropertyService(propertyRepository);
+        try {
+            await runner.connect();
 
-const unitRepository: UnitRepository = new UnitRepository(database.createQueryRunner());
-const unitService: UnitService = new UnitService(unitRepository, propertyService);
+            // Share one connection for this request.
+            const propertyRepository = new PropertyRepository(runner);
+            const propertyService = new PropertyService(propertyRepository);
 
+            const unitRepository = new UnitRepository(runner);
+            const unitService = new UnitService(
+                unitRepository,
+                propertyService
+            );
 
-//api endpoint to create a new unit
-export const POST = processAPIRequest(async ({ request }) => {
-    const data = await request.json();
-    console.log(data);
-    const res = await unitService.create(data);
-    return json({status:200, unit:res});
-});
+            const unit = await unitService.create(data);
 
+            return json({ status: 200, unit });
+        } finally {
+            // Return the connection even if the request fails.
+            await runner.release();
+        }
+    }
+);
