@@ -4,7 +4,7 @@ import type { DocumentRepository } from "../repositories/document/DocumentReposi
 import type { UserService } from "./userService";
 import fs from 'fs/promises';
 import path from 'path';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'node:crypto';
 
 
 import {fileTypeFromBuffer} from 'file-type';
@@ -142,16 +142,18 @@ export class DocumentService {
 
 
         // Save the file to the server (this is just an example, you should implement your own logic)
-        const filename = uuidv4() + '.' + type.ext;
-        const filePath = path.join(process.cwd(), 'uploads', filename);
+        const uploadsDir = path.join(process.cwd(), 'uploads');
+
+        // Create the directory if it doesn't exist.
+        await fs.mkdir(uploadsDir, { recursive: true });
+
+        const filename = `${randomUUID()}.${type.ext}`;
+        const filePath = path.join(uploadsDir, filename);
 
         await fs.writeFile(filePath, buffer);
-        const isSaved = await fs.readFile(filePath);
-        if(!isSaved) {
-            throw new UserException("An error occurred saving the file. Please try again");
-        }
 
-        return filePath;
+        // Store only the filename in the database.
+        return filename;
     }
 
     async createDocument(owner: string, tenant: string, unit: string, base64File:string): Promise<IDocument> {

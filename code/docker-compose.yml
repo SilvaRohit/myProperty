@@ -1,39 +1,18 @@
 version: '3.9'
 
 services:
-  # db:
-  #   #image: postgres
-  #   image: postgres:18
-  #   restart: always
-  #   environment:
-  #     POSTGRES_USER: ${DATABASE_USER}
-  #     POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
-  #     POSTGRES_DB: ${DATABASE_NAME}
-  #   volumes:
-  #     #- db_data:/var/lib/postgresql/data
-  #     - db_data_pg18:/var/lib/postgresql
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USER} -d ${DATABASE_NAME}"]
-  #     interval: 5s
-  #     timeout: 5s
-  #     retries: 5
-
   web:
-    # depends_on:
-    #   db:
-    #     condition: service_healthy
     build: .
-    volumes:
-      - .:/app
-      - /app/node_modules  # Avoid mounting node_modules
-    ports:
-      - "5173:5173"
-    environment:
-      - CHOKIDAR_USEPOLLING=true
-    env_file: 
-      - .env
-    command: ["npm", "run", "dev", "--", "--host"]
+    restart: unless-stopped
 
-# volumes:
-#   db_data:
-#   db_data_pg18:
+    ports:
+      - "127.0.0.1:5173:5173"
+
+    env_file:
+      - .env
+
+    volumes:
+      - uploads_data:/app/uploads
+
+volumes:
+  uploads_data:
