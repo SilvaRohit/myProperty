@@ -11,7 +11,7 @@
 	let units: { id: string; number: string }[] = [];
 
 	async function handleCreateMaintenanceRequest() {
-		const res = await fetch('http://localhost:5173/api/maintenance_request/', {
+		const res = await fetch('/api/maintenance_request/', {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json'
@@ -41,7 +41,7 @@
 
 	// Fetch properties belonging to the owner
 	async function fetchProperties(owner_id) {
-		const res = await fetch(`http://localhost:5173/api/property/owner/${owner_id}`, {
+		const res = await fetch(`/api/property/owner/${owner_id}`, {
 			method: 'GET',
 			headers: {
 				'Content-Type': 'application/json'

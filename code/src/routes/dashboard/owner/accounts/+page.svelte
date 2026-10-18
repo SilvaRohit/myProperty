@@ -5,7 +5,7 @@
 	let users = [];
 
 	async function fetchUsers() {
-		const response = await fetch('http://localhost:5173/api/user');
+		const response = await fetch('/api/user');
 		const data = await response.json();
 		users = data.users;
 	}

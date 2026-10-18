@@ -41,7 +41,7 @@
 		try {
 			const [propertiesRes, usersRes] = await Promise.all([
 				fetch(`/api/property/owner/${userInfo.id}`),
-				fetch(`http://localhost:5173/api/user`)
+				fetch(`/api/user`)
 			]);
 
 			if (!propertiesRes.ok) throw new Error(`Failed to fetch properties: ${propertiesRes.status}`);
