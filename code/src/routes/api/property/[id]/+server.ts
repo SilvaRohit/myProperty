@@ -33,7 +33,9 @@ export const POST = processAPIRequest(async ({ request }) => {
 
 export const GET = processAPIRequest(async ({ params }) => {
     const data = params.id;
+    console.log('PROPERTY_DETAIL_ROUTE_START', data);
     const res = await propertyService.getPropertyById(data);
+    console.log('PROPERTY_DETAIL_ROUTE_END', !!res, res?.id);
     return json({status:200, property:res});
 });
 

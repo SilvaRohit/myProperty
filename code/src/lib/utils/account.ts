@@ -4,6 +4,10 @@ export function decodeJWT(token) {
 }
 
 export function getUserInfo() {
+    if (typeof window === 'undefined') {
+        throw new Error("Token not found");
+    }
+
     const token = localStorage.getItem('token');
     if(!token) {
         throw new Error("Token not found");

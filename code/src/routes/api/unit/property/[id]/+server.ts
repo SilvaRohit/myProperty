@@ -30,7 +30,7 @@ const unitService = new UnitService(unitRepository, propertyService);
 export const GET = processAPIRequest(async ({ params }) => {
     const propertyId = params.id;
     const units = await unitService.getByPropertyId(propertyId);
-    return json({ status: 200, units });
+    return json({ status: 200, units: units ?? [] });
 });
 
 export const POST = processAPIRequest(async ({ request, params }) => {

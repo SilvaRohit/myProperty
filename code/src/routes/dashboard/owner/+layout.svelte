@@ -17,8 +17,8 @@
 
 <style>
     #star-container {
-		height: 100vh;
-		overflow: hidden;
+		min-height: 100vh;
+		overflow-x: hidden;
 		position: relative;
 	}
 #body {

@@ -131,12 +131,12 @@ describe("UnitService Tests", () => {
             await expect(result).rejects.toThrowError(new UserException("Property ID is required", 400));
         });
 
-        it("should throw a user exception if no units are found for the given property", async () => {
+        it("should return an empty array if no units are found for the given property", async () => {
             (unitRepository.find as Mock).mockResolvedValue([]);
 
             const propertyId = "non-existing-property-id";
-            const result = unitService.getByPropertyId(propertyId);
-            await expect(result).rejects.toThrowError(new UserException("No units found for the given property", 404));
+            const result = await unitService.getByPropertyId(propertyId);
+            expect(result).toEqual([]);
         });
 
         it("should return the units associated with the given property", async () => {

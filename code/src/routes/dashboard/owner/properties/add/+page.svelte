@@ -1,5 +1,6 @@
 <script>
 	import { goto } from '$app/navigation';
+	import { onMount } from 'svelte';
 
 	let property = {
 		name: '',
@@ -8,17 +9,40 @@
 		state: '',
 		zip: ''
 	};
+	let ownerId = '';
 
 	function decodeJWT(token) {
 		const payload = token.split('.')[1];
 		return JSON.parse(atob(payload));
 	}
 
-	const token = localStorage.getItem('token');
-	const userInfo = token ? decodeJWT(token) : null;
-	const ownerId = userInfo ? userInfo.id : '';
+	onMount(() => {
+		if (typeof window === 'undefined') {
+			return;
+		}
+
+		const token = localStorage.getItem('token');
+		if (!token) {
+			goto('/');
+			return;
+		}
+
+		try {
+			const userInfo = decodeJWT(token);
+			ownerId = userInfo?.id || '';
+		} catch (error) {
+			console.error('Error decoding token', error);
+			goto('/');
+		}
+	});
 
 	async function handleSubmit() {
+		if (!ownerId) {
+			console.error('Owner ID not found');
+			goto('/');
+			return;
+		}
+
 		const propertyData = {
 			name: property.name,
 			address_line1: property.address_line1,

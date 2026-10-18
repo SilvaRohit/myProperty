@@ -8,19 +8,24 @@
     let units = [];
 
     onMount(async () => {
-        const res = await fetch(`/api/property/${data.id}`);
-        const unitRes = await fetch(`/api/unit/property/${data.id}`);
+        try {
+            const res = await fetch(`/api/property/${data.id}`);
+            const propertyData = await res.json();
 
-        if (res.ok) {
-            const responseData = await res.json();
-            property = responseData.property;
-        } else {
-            goto('/dashboard/owner/properties');
-        }
+            if (!res.ok || !propertyData?.property) {
+                goto('/dashboard/owner/properties');
+                return;
+            }
 
-        if (unitRes.ok) {
+            property = propertyData.property;
+
+            const unitRes = await fetch(`/api/unit/property/${data.id}`);
             const unitData = await unitRes.json();
-            units = unitData.units;
+
+            units = Array.isArray(unitData?.units) ? unitData.units : [];
+        } catch (error) {
+            console.error('Error loading property details:', error);
+            goto('/dashboard/owner/properties');
         }
     });
 
@@ -42,11 +47,15 @@
 
         <button on:click={goToAdd}>Add</button>
 
-        <ul>
-            {#each units as unit}
-                <li>Unit #{unit.number}</li>
-            {/each}
-        </ul>
+        {#if units.length > 0}
+            <ul>
+                {#each units as unit}
+                    <li>Unit #{unit.number}</li>
+                {/each}
+            </ul>
+        {:else}
+            <p>No units added yet.</p>
+        {/if}
 
         <a href="/dashboard/owner/properties">Back to Property List</a>
     {:else}
@@ -64,27 +73,24 @@
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		position: absolute;
-		left: 0px;
 		z-index: 10;
-		overflow: hidden;
 		position: relative;
 	}
 
 	#class-box {
 		width: 60vw;
-		height: 40vh;
+        min-height: 40vh;
 		max-width: 800px;
-		max-height: 600px;
 		background-color: rgb(50, 50, 50);
 		border: 0.5rem solid #5f0f40;
 		border-top-right-radius: 5rem;
 		border-bottom-left-radius: 5rem;
 
 		padding: 2rem;
+        box-sizing: border-box;
 		text-align: center;
 		display: flex;
-		flex-direction: row;
+        flex-direction: column;
 		justify-content: center;
 	}
 
@@ -93,7 +99,6 @@
 		background: #73ad21;
 		padding: 10px;
 		width: 25%;
-		height: 20%;
 		margin-bottom: 5%;
 		align-self: center;
 	}

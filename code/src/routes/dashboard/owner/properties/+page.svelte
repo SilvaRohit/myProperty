@@ -3,24 +3,32 @@
     import { goto } from "$app/navigation";
 
     let properties = [];
+    let userInfo = null;
 
     function decodeJWT(token) {
         const payload = token.split('.')[1];
         return JSON.parse(atob(payload));
     }
 
-    const token = localStorage.getItem('token');
-    let userInfo;
+    onMount(async () => {
+        if (typeof window === 'undefined') {
+            return;
+        }
 
-    if (token) {
+        const token = localStorage.getItem('token');
+        if (!token) {
+            goto('/');
+            return;
+        }
+
         try {
             userInfo = decodeJWT(token);
         } catch (error) {
             console.error("Error decoding token", error);
+            goto('/');
+            return;
         }
-    }
 
-    onMount(async () => {
         try {
             const res = await fetch(`/api/property/owner/${userInfo.id}`);
 

@@ -48,18 +48,14 @@ export class UnitService {
         if (!propertyId) {
             throw new UserException("Property ID is required");
         }
-        
+
         await this.propertyService.getPropertyById(propertyId);
 
         const units = await this.unitRepository.find({
             where: { property: { id: propertyId } },
         });
 
-        if (!units || units.length === 0) {
-            throw new UserException("No units found for the given property", 404);
-        }
-
-        return units;
+        return units ?? [];
     }
 
     // /**

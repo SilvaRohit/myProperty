@@ -1,5 +1,6 @@
 <script>
 	import { onMount } from 'svelte';
+	import { goto } from '$app/navigation';
 	let properties = [];
 	let units = [];
 	let users = [];
@@ -15,19 +16,26 @@
 		return JSON.parse(atob(payload));
 	}
 
-	const token = localStorage.getItem('token');
-	let userInfo;
+	onMount(async () => {
+		if (typeof window === 'undefined') {
+			return;
+		}
 
-	if (token) {
+		const token = localStorage.getItem('token');
+		if (!token) {
+			goto('/');
+			return;
+		}
+
 		try {
-			userInfo = decodeJWT(token);
+			const userInfo = decodeJWT(token);
 			owner = userInfo.id;
 		} catch (error) {
 			console.error('Error decoding token', error);
+			goto('/');
+			return;
 		}
-	}
 
-	onMount(async () => {
 		try {
 			const res = await fetch(`/api/property/owner/${owner}`);
 
