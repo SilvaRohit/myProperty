@@ -16,7 +16,7 @@ export class MaintenanceRequestRepository extends Repository<IMaintenanceRequest
             .innerJoin(
                 Unit,
                 'unit',
-                'unit.id = request.unit_id'
+                'CAST(unit.id AS text) = request.unit_id'
             )
             .innerJoin('unit.property', 'property')
             .innerJoin('property.owner', 'owner')
