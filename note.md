@@ -17,6 +17,8 @@ git push -u origin aws-deployment
 
 git clone --branch aws-deployment --single-branch https://github.com/SilvaRohit/myProperty.git
 
+git pull --ff-only origin aws-deployment
+
 curl -fsSL https://get.docker.com -o get-docker.sh
 sudo sh get-docker.sh
 
