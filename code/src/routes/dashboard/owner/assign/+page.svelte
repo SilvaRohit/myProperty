@@ -1,254 +1,401 @@
 <script>
-	import { onMount } from 'svelte';
-	import { goto } from '$app/navigation';
+    import { onMount } from 'svelte';
+    import { goto } from '$app/navigation';
 
-	let properties = [];
-	let units = [];
-	let users = [];
-	let userInfo = null;
+    let properties = [];
+    let units = [];
+    let users = [];
+    let userInfo = null;
+    let token = '';
 
-	let selectedPropertyId = '';
-	let selectedUnitId = '';
-	let selectedUserId = '';
-	let startDate = '';
-	let endDate = '';
+    let selectedPropertyId = '';
+    let selectedUnitId = '';
+    let selectedUserId = '';
+    let startDate = '';
+    let endDate = '';
 
-	function decodeJWT(token) {
-		const payload = token.split('.')[1];
-		return JSON.parse(atob(payload));
-	}
+    let loading = true;
+    let loadingUnits = false;
+    let submitting = false;
+    let errorMessage = '';
+    let successMessage = '';
 
-	// Cargar propiedades y usuarios al montar
-	onMount(async () => {
-		if (typeof window === 'undefined') {
-			return;
-		}
+    function decodeJWT(value) {
+        const payload = value.split('.')[1];
+        const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+        const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=');
 
-		const token = localStorage.getItem('token');
-		if (!token) {
-			goto('/');
-			return;
-		}
+        return JSON.parse(atob(padded));
+    }
 
-		try {
-			userInfo = decodeJWT(token);
-		} catch (error) {
-			console.error('Error decoding token', error);
-			goto('/');
-			return;
-		}
+    async function readResponse(response) {
+        const data = await response.json();
 
-		try {
-			const [propertiesRes, usersRes] = await Promise.all([
-				fetch(`/api/property/owner/${userInfo.id}`),
-				fetch(`/api/user`)
-			]);
+        if (!response.ok || data.error) {
+            throw new Error(
+                data.error || `Request failed (${response.status}).`
+            );
+        }
 
-			if (!propertiesRes.ok) throw new Error(`Failed to fetch properties: ${propertiesRes.status}`);
-			if (!usersRes.ok) throw new Error(`Failed to fetch users: ${usersRes.status}`);
+        return data;
+    }
 
-			const propertiesData = await propertiesRes.json();
-			const usersData = await usersRes.json();
+    onMount(async () => {
+        token = localStorage.getItem('token') || '';
 
-			properties = propertiesData.properties;
-			users = usersData.users;
-		} catch (error) {
-			console.error('Error loading data:', error);
-		}
-	});
+        if (!token) {
+            goto('/');
+            return;
+        }
 
-	// Cargar unidades al seleccionar propiedad
-	async function fetchUnits() {
-		if (!selectedPropertyId) return;
+        try {
+            userInfo = decodeJWT(token);
 
-		try {
-			const res = await fetch(`/api/unit/property/${selectedPropertyId}`);
+            if (!userInfo.id) {
+                throw new Error('Invalid login session.');
+            }
+        } catch {
+            goto('/');
+            return;
+        }
 
-			if (!res.ok) {
-				throw new Error(`Failed to fetch units: ${res.status}`);
-			}
+        try {
+            const headers = {
+                Authorization: `Bearer ${token}`
+            };
 
-			const data = await res.json();
-			units = data.units;
-		} catch (error) {
-			console.error('Error loading units:', error);
-		}
-	}
+            const [propertiesResponse, usersResponse] = await Promise.all([
+                fetch(`/api/property/owner/${userInfo.id}`, { headers }),
+                fetch('/api/user', { headers })
+            ]);
 
-	$: selectedPropertyId, fetchUnits();
+            const [propertiesData, usersData] = await Promise.all([
+                readResponse(propertiesResponse),
+                readResponse(usersResponse)
+            ]);
 
-	// Función para hacer el POST y asignar el inquilino
-	async function assignTenant() {
-		if (!selectedUserId || !selectedUnitId || !startDate || !endDate) {
-			alert('Please fill in all fields.');
-			return;
-		}
+            properties = propertiesData.properties || [];
+            users = usersData.users || [];
+        } catch (error) {
+            errorMessage =
+                error instanceof Error
+                    ? error.message
+                    : 'Could not load properties and users.';
+        } finally {
+            loading = false;
+        }
+    });
 
-		const payload = {
-			tenant: selectedUserId,
-			unit: selectedUnitId,
-			startDate,
-			endDate
-		};
+    async function fetchUnits(propertyId) {
+        units = [];
+        selectedUnitId = '';
+        successMessage = '';
 
-		try {
-			const res = await fetch(`/api/unit/property/${userInfo.id}`, {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify(payload)
-			});
+        if (!propertyId) {
+            loadingUnits = false;
+            return;
+        }
 
-			if (!res.ok) {
-				throw new Error(`Failed to assign tenant: ${res.status}`);
-			}
+        loadingUnits = true;
+        errorMessage = '';
 
-			const result = await res.json();
-			alert(result.message || 'Tenant assigned successfully!');
-		} catch (error) {
-			console.error('Error assigning tenant:', error);
-			alert('Error assigning tenant.');
-		}
-	}
+        try {
+            const response = await fetch(
+                `/api/unit/property/${propertyId}`,
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`
+                    }
+                }
+            );
+
+            const data = await readResponse(response);
+
+            // Ignore a response if another property was selected meanwhile.
+            if (selectedPropertyId !== propertyId) return;
+
+            units = data.units || [];
+        } catch (error) {
+            if (selectedPropertyId !== propertyId) return;
+
+            errorMessage =
+                error instanceof Error
+                    ? error.message
+                    : 'Could not load units.';
+        } finally {
+            if (selectedPropertyId === propertyId) {
+                loadingUnits = false;
+            }
+        }
+    }
+
+    $: fetchUnits(selectedPropertyId);
+
+    async function assignTenant() {
+        if (submitting) return;
+
+        errorMessage = '';
+        successMessage = '';
+
+        if (
+            !selectedPropertyId ||
+            !selectedUnitId ||
+            !selectedUserId ||
+            !startDate ||
+            !endDate
+        ) {
+            errorMessage = 'Please fill in all fields.';
+            return;
+        }
+
+        if (endDate <= startDate) {
+            errorMessage = 'End date must be after start date.';
+            return;
+        }
+
+        const selectedTenant = users.find(
+            (user) => user.id === selectedUserId
+        );
+
+        if (!selectedTenant || !selectedTenant.username) {
+            errorMessage = 'Please select a valid tenant account.';
+            return;
+        }
+
+        if (!units.some((unit) => unit.id === selectedUnitId)) {
+            errorMessage = 'Please select a unit from this property.';
+            return;
+        }
+
+        const payload = {
+            tenant: {
+                id: selectedTenant.id,
+                username: selectedTenant.username
+            },
+            unit: {
+                id: selectedUnitId
+            },
+            startDate,
+            endDate
+        };
+
+        submitting = true;
+
+        try {
+            const response = await fetch(
+                `/api/unit/property/${selectedPropertyId}`,
+                {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${token}`
+                    },
+                    body: JSON.stringify(payload)
+                }
+            );
+
+            const result = await readResponse(response);
+
+            successMessage =
+                result.message || 'Tenant assigned successfully!';
+        } catch (error) {
+            errorMessage =
+                error instanceof Error
+                    ? error.message
+                    : 'Could not assign the tenant.';
+        } finally {
+            submitting = false;
+        }
+    }
 </script>
 
 <div id="body">
-	<div id="class-box">
-        <div id="partition1">
+    <div id="class-box">
+        <h2>Assign Tenant</h2>
 
-        <div id="partition2">
-		<p>Select a property</p>
-		<select bind:value={selectedPropertyId}>
-			<option value="">Select a property</option>
-			{#each properties as property}
-				<option value={property.id}>{property.name}</option>
-			{/each}
-		</select>
+        {#if errorMessage}
+            <p class="message error" role="alert">{errorMessage}</p>
+        {/if}
 
-		{#if selectedPropertyId}
-			<p>Select a unit</p>
-			<select bind:value={selectedUnitId}>
-				<option value="">Select a unit</option>
-				{#each units as unit}
-					<option value={unit.id}>{unit.number}</option>
-				{/each}
-			</select>
-		{/if}
-        </div>
-        <div id="partition2">
-		<p>Select a user</p>
-		<select bind:value={selectedUserId}>
-			<option value="">Select a user</option>
-			{#each users as user}
-				<option value={user.id}>{user.firstName} {user.lastName}</option>
-			{/each}
-		</select>
+        {#if successMessage}
+            <p class="message success" role="status">{successMessage}</p>
+        {/if}
 
-		<p>Start date</p>
-		<input type="date" bind:value={startDate} />
+        {#if loading}
+            <p>Loading properties and users...</p>
+        {:else}
+            <div id="partition1">
+                <div class="partition2">
+                    <label for="property">Property</label>
+                    <select
+                        id="property"
+                        bind:value={selectedPropertyId}
+                        disabled={submitting}
+                    >
+                        <option value="">Select a property</option>
+                        {#each properties as property}
+                            <option value={property.id}>
+                                {property.name}
+                            </option>
+                        {/each}
+                    </select>
+                </div>
 
-		<p>End date</p>
-		<input type="date" bind:value={endDate} />
-        </div>
-		<br /><br />
-        <button on:click={assignTenant}>Assign Tenant</button>
+                {#if selectedPropertyId}
+                    <div class="partition2">
+                        <label for="unit">Unit</label>
+                        <select
+                            id="unit"
+                            bind:value={selectedUnitId}
+                            disabled={loadingUnits || submitting}
+                        >
+                            <option value="">
+                                {loadingUnits ? 'Loading units...' : 'Select a unit'}
+                            </option>
+                            {#each units as unit}
+                                <option value={unit.id}>{unit.number}</option>
+                            {/each}
+                        </select>
+                    </div>
+                {/if}
+
+                <div class="partition2">
+                    <label for="tenant">Tenant account</label>
+                    <select
+                        id="tenant"
+                        bind:value={selectedUserId}
+                        disabled={submitting}
+                    >
+                        <option value="">Select a tenant account</option>
+                        {#each users as user}
+                            <option value={user.id}>
+                                {user.firstName} {user.lastName}
+                                ({user.username})
+                            </option>
+                        {/each}
+                    </select>
+                </div>
+
+                <div class="partition2">
+                    <label for="start-date">Start date</label>
+                    <input
+                        id="start-date"
+                        type="date"
+                        bind:value={startDate}
+                        disabled={submitting}
+                    />
+
+                    <label for="end-date">End date</label>
+                    <input
+                        id="end-date"
+                        type="date"
+                        bind:value={endDate}
+                        min={startDate}
+                        disabled={submitting}
+                    />
+                </div>
+
+                <button
+                    type="button"
+                    on:click={assignTenant}
+                    disabled={submitting || loadingUnits}
+                >
+                    {submitting ? 'Assigning...' : 'Assign Tenant'}
+                </button>
+            </div>
+        {/if}
     </div>
-		
-	</div>
 </div>
 
 <style>
-	#body {
-		justify-items: center;
-		width: 100%;
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		position: absolute;
-		left: 0px;
-		z-index: 10;
-		overflow: hidden;
-		position: relative;
-	}
-
-	#class-box {
-		width: 60vw;
-		height: 40vh;
-		max-width: 800px;
-		max-height: 600px;
-		background-color: rgb(50, 50, 50);
-		border: 0.5rem solid #5f0f40;
-		border-top-right-radius: 5rem;
-		border-bottom-left-radius: 5rem;
-		padding: 2rem;
-		text-align: center;
-		display: flex;
-		flex-direction: column;
-		justify-content: space-evenly;
-		align-items: stretch;
-		flex-wrap: wrap;
-	}
-
-	#class-box button {
-		border-radius: 15px;
-		background: #73ad21;
-		padding: 10px;
-		width: 30%;
-		height: 35%;
-		margin: 0%;
-	}
-
-	#login-Form {
-		display: flex;
-		flex-direction: column;
-		justify-items: center;
-		font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
-		align-items: center;
-	}
-
-	#login-Title {
-		font-family: 'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif;
-		font-size: 50px;
-		color: #0f4c5c;
-		-webkit-text-stroke: 0.5px whitesmoke;
-		justify-self: center;
-	}
-
-	::-webkit-input-placeholder {
-		text-align: center;
-	}
-
-	#partition1 {
-		display: flex;
-        flex-wrap: wrap;
-		align-items: center;
-        padding-bottom: 10%;
+    #body {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
         justify-content: center;
-	}
+        width: 100%;
+        position: relative;
+        z-index: 10;
+    }
 
-	#partition2 {
-		display: flex;
-		flex-direction: row;
-		align-items: center;
-		column-gap: 0.51rem;
-	}
+    #class-box {
+        box-sizing: border-box;
+        width: 60vw;
+        max-width: 800px;
+        background-color: rgb(50, 50, 50);
+        border: 0.5rem solid #5f0f40;
+        border-top-right-radius: 5rem;
+        border-bottom-left-radius: 5rem;
+        padding: 2rem;
+        text-align: center;
+        color: whitesmoke;
+    }
 
-	#accountAddButton {
-		border-radius: 15px;
-		background: #73ad21;
-		padding: 10px;
-		width: 13.5%;
-		height: 13.5%;
-	}
+    #partition1 {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 1.25rem;
+    }
 
-	@keyframes pan {
-		0% {
-			background-position: 0% 0%;
-		}
-		100% {
-			background-position: 100% 0%;
-		}
-	}
+    .partition2 {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: center;
+        gap: 0.75rem;
+    }
+
+    select,
+    input {
+        box-sizing: border-box;
+        max-width: 100%;
+        padding: 0.5rem;
+        border-radius: 0.4rem;
+    }
+
+    button {
+        align-self: center;
+        border-radius: 15px;
+        background: #73ad21;
+        color: #111;
+        padding: 0.75rem 1.5rem;
+        border: none;
+        cursor: pointer;
+    }
+
+    button:disabled {
+        opacity: 0.6;
+        cursor: wait;
+    }
+
+    .message {
+        padding: 0.75rem;
+        border-radius: 0.5rem;
+        overflow-wrap: anywhere;
+    }
+
+    .error {
+        background: #5c2020;
+        color: #fff;
+    }
+
+    .success {
+        background: #244b24;
+        color: #fff;
+    }
+
+    @media (max-width: 768px) {
+        #class-box {
+            width: 95%;
+            padding: 1.25rem;
+            border-top-right-radius: 2rem;
+            border-bottom-left-radius: 2rem;
+        }
+
+        .partition2 {
+            flex-direction: column;
+            align-items: stretch;
+        }
+    }
 </style>

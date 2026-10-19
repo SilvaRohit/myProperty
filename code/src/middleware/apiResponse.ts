@@ -14,7 +14,10 @@ export function processAPIRequest(handler: Function) {
             }
 
             console.log(error);
-            return json({ error: message, status: status });
+            return json(
+                { error: message, status},
+                { status }
+            );
         }
     };
 }
