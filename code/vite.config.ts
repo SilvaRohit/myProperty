@@ -4,6 +4,18 @@ import { defineConfig } from 'vite';
 import tsconfigPaths from 'vite-tsconfig-paths'; // Make sure this import is present
 
 export default defineConfig({
+    server: {
+        host: '0.0.0.0',
+        port: 5173,
+        strictPort: true,
+        allowedHosts: ['property.tecerotech.com'],
+        hmr: {
+            protocol: 'wss',
+            host: 'property.tecerotech.com',
+            clientPort: 443
+        }
+    },
+    
     plugins: [
         sveltekit(),
         tsconfigPaths() // Keep it here for the root config (dev/build)
