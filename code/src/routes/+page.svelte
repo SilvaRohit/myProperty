@@ -49,7 +49,7 @@
 </script>
 
 <svelte:head>
-	<title>TeceroTech-Property</title>
+	<title>Tecero-Property</title>
 </svelte:head>
 
 <div id="body">
