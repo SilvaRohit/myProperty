@@ -1,29 +1,6 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+// @vitest-environment jsdom
+import { describe, it, expect, beforeEach } from "vitest";
 import { getUserInfo, decodeJWT } from "$lib/utils/account";
-
-// Mock localStorage
-class LocalStorageMock {
-    store: Record<string, string>;
-    constructor() {
-        this.store = {};
-    }
-    clear() {
-        this.store = {};
-    }
-    getItem(key: string) {
-        return this.store[key] || null;
-    }
-    setItem(key: string, value: string) {
-        this.store[key] = value;
-    }
-    removeItem(key: string) {
-        delete this.store[key];
-    }
-}
-
-// Asignamos el mock a global.localStorage
-const localStorageMock = new LocalStorageMock();
-global.localStorage = localStorageMock as unknown as Storage;
 
 describe("JWT Tests for lib/utils/account.ts", () => {
     beforeEach(() => {

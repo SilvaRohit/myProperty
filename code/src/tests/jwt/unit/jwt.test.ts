@@ -1,8 +1,6 @@
-import { describe, it, expect, beforeEach, vi, Mock, beforeAll, assert } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
+import jsonwebtoken from "jsonwebtoken";
 import jwt from "$lib/server/jwt/jwt";
-
-
-
 
 describe("JWT Tests", () => {
     //setup the variables
@@ -13,14 +11,12 @@ describe("JWT Tests", () => {
     let expire:string;
     let fakeToken:string;
 
-    //this should be run before all tests
-    beforeAll(()=>{
+    // Create fresh fixtures so valid-token tests do not expire over time.
+    beforeEach(()=>{
         //the secret
         secret = "topSecret";
         //set to a long expire time for ease of testing
         expire = "30d";
-        //a fake jwt token
-        fakeToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiIxMjM0NTYiLCJlbWFpbCI6ImFkbWluQG15cHJvcGVydHkuY29tIiwiaWF0IjoxNzQzMTA4MTgxLCJleHAiOjE3NDU3MDAxODF9.9tgSRVoGEmQF_XnJjpczM9H1d7CaUw2SXy7V2x6wvCU";
 
         //a fake username and email that will be used as part of the payload to generate the token
         email = "admin@myproperty.com";
@@ -30,7 +26,8 @@ describe("JWT Tests", () => {
         payload = {
             userId: userId,
             email:email
-        }
+        };
+        fakeToken = jsonwebtoken.sign(payload, secret, { expiresIn: "1h" });
     });
 
     //throw an error if secret is not provided
@@ -61,6 +58,16 @@ describe("JWT Tests", () => {
 
     it('should throw a user exception if the token is invalid', async()=>{
         expect(()=>jwt.verifyToken("invalidToken", secret)).toThrowError("Invalid token");
+    });
+
+    it('should reject an expired token', () => {
+        const expiredToken = jsonwebtoken.sign(payload, secret, { expiresIn: -1 });
+        expect(() => jwt.verifyToken(expiredToken, secret)).toThrowError("Invalid token");
+    });
+
+    it('should reject a token signed with a different secret', () => {
+        const wrongSecretToken = jsonwebtoken.sign(payload, "another-test-secret", { expiresIn: "1h" });
+        expect(() => jwt.verifyToken(wrongSecretToken, secret)).toThrowError("Invalid token");
     });
 
     //should successfully decoded a toekn
