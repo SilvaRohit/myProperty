@@ -11,7 +11,7 @@
 	const roles = ['owner', 'tenant', 'maintenance manager', 'maintenance operator'];
 
 	async function handleRegister() {
-		const res = await fetch('/api/auth/register', {
+		const res = await fetch('http://localhost:5173/api/auth/register', {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json'

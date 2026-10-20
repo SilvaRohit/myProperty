@@ -16,7 +16,7 @@
 			}
 		};
 
-		const res = await fetch('/api/unit', {
+		const res = await fetch('http://localhost:5173/api/unit', {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json'

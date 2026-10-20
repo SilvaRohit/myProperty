@@ -50,7 +50,7 @@
 		}
 
 		try {
-			const userRes = await fetch('/api/user');
+			const userRes = await fetch('http://localhost:5173/api/user');
 			if (!userRes.ok) {
 				throw new Error(`Failed to fetch users: ${userRes.status}`);
 			}
@@ -114,7 +114,7 @@
 						base64File = arrayBufferToBase64(reader.result);
 					}
 
-					const res = await fetch(`/api/property/document/${owner}`, {
+					const res = await fetch(`http://localhost:5173/api/property/document/${owner}`, {
 						method: 'POST',
 						headers: {
 							'Content-Type': 'application/json'

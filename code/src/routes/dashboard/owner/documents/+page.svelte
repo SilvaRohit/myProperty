@@ -42,11 +42,11 @@
 		}
 
 		try {
-			const res = await fetch(`/api/property/document/${ownerId}`);
+			const res = await fetch(`http://localhost:5173/api/property/document/${ownerId}`);
 			const data = await res.json();
 			documents = data.body.documents.map((doc: Document) => ({
 				...doc,
-				path: `/uploads/${doc.path.split('\\').pop()}` // Modificar la ruta del archivo
+				path: `http://localhost:5173/uploads/${doc.path.split('\\').pop()}` // Modificar la ruta del archivo
 			}));
 		} catch (err) {
 			console.error('Error fetching documents', err);

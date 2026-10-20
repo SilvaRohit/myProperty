@@ -1,8 +1,6 @@
-version: '3.9'
-
 services:
   web:
-    build: .
+    image: 147997138960.dkr.ecr.ap-southeast-7.amazonaws.com/property-app-dev:sha-1b329394f0ec029b3456b0a75ffb940e11969b5e-run-39473958717-1
     restart: unless-stopped
 
     ports:
@@ -13,6 +11,7 @@ services:
 
     volumes:
       - uploads_data:/app/uploads
+      - ./certs/global-bundle.pem:/app/certs/global-bundle.pem:ro
 
 volumes:
   uploads_data:

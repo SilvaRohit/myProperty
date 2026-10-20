@@ -52,7 +52,7 @@
 			owner: ownerId
 		};
 
-		const res = await fetch('/api/property', {
+		const res = await fetch('http://localhost:5173/api/property', {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json'
