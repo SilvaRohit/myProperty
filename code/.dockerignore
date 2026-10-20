@@ -1,0 +1,16 @@
+.git
+node_modules
+.svelte-kit
+build
+.env
+.env.*
+*.env
+certs
+uploads
+*.pem
+*.key
+*.tfstate
+*.tfstate.*
+.terraform
+.DS_Store
+npm-debug.log*
