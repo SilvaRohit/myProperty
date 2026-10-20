@@ -48,9 +48,13 @@
 	}
 </script>
 
+<svelte:head>
+	<title>TeceroTech-Property</title>
+</svelte:head>
+
 <div id="body">
 	<div id="star-container">
-		<h1 id="login-Title">My-Property</h1>
+		<h1 id="login-Title">TeceroTech-Property</h1>
 		<div id="class-box">
 			<form id="login-Form" on:submit|preventDefault={handleLogin}>
 				<h2 style="color: darkkhaki;">Sign-In</h2>
