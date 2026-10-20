@@ -1,10 +1,11 @@
-name: Build and push property app to ECR
+name: Build, test and deploy property app
 
 on:
   push:
     branches: [aws-deployment]
     paths:
       - 'code/**'
+      - 'deploy/**'
       - '.github/workflows/build-ecr.yml'
   workflow_dispatch:
 
@@ -24,7 +25,7 @@ jobs:
   publish:
     if: github.repository == 'SilvaRohit/myProperty' && github.ref == 'refs/heads/aws-deployment'
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    timeout-minutes: 55
     permissions:
       contents: read
       id-token: write
@@ -61,7 +62,7 @@ jobs:
           aws ecr get-login-password --region "$AWS_REGION" |
             docker login --username AWS --password-stdin "$ECR_REGISTRY"
 
-      - name: Build and push versioned image
+      - name: Build, test and push versioned image
         id: image
         run: |
           set -euo pipefail
@@ -74,11 +75,45 @@ jobs:
             --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
             --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
             --tag "$image_uri" ./code
+          # Run this branch's complete unit suite in the exact image being published.
+          docker run --rm --entrypoint npm "$image_uri" run coverage
           docker push "$image_uri"
 
           printf 'image_uri=%s\n' "$image_uri" >> "$GITHUB_OUTPUT"
           printf '### Published image\n\n`%s`\n\nPlatform: `linux/amd64`\n' \
             "$image_uri" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Deploy the published image through Systems Manager
+        if: vars.AUTO_DEPLOY_ENABLED == 'true'
+        env:
+          IMAGE_URI: ${{ steps.image.outputs.image_uri }}
+          INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+          DOCUMENT_NAME: ${{ vars.SSM_DEPLOY_DOCUMENT }}
+        run: |
+          set -euo pipefail
+          python3 deploy/request-deploy.py \
+            --image "$IMAGE_URI" \
+            --instance "$INSTANCE_ID" \
+            --document "$DOCUMENT_NAME"
+
+      - name: Check the public HTTPS website
+        if: vars.AUTO_DEPLOY_ENABLED == 'true'
+        run: |
+          set -euo pipefail
+          status=$(curl --silent --show-error --max-time 20 \
+            --output /dev/null --write-out '%{http_code}' \
+            https://property.tecerotech.com/)
+          if [[ "$status" != 200 ]]; then
+            echo "HTTPS check returned HTTP $status. The image is deployed; inspect DNS and Caddy." >&2
+            exit 1
+          fi
+          printf '\nDeployment and public HTTPS check succeeded.\n' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Explain build-only mode
+        if: vars.AUTO_DEPLOY_ENABLED != 'true'
+        run: |
+          printf '\nImage published. Automatic deployment is disabled until AUTO_DEPLOY_ENABLED=true.\n' \
+            >> "$GITHUB_STEP_SUMMARY"
 
       - name: Log out of ECR
         if: always()
