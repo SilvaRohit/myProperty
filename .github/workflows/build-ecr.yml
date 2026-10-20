@@ -1,0 +1,85 @@
+name: Build and push property app to ECR
+
+on:
+  push:
+    branches: [aws-deployment]
+    paths:
+      - 'code/**'
+      - '.github/workflows/build-ecr.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: property-ecr-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ap-southeast-7
+  ECR_REGISTRY: 147997138960.dkr.ecr.ap-southeast-7.amazonaws.com
+  ECR_REPOSITORY_URL: 147997138960.dkr.ecr.ap-southeast-7.amazonaws.com/property-app-dev
+
+jobs:
+  publish:
+    if: github.repository == 'SilvaRohit/myProperty' && github.ref == 'refs/heads/aws-deployment'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Check out source
+        # actions/checkout v6, resolved from upstream on 2026-10-20.
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
+
+      - name: Check AWS role configuration
+        env:
+          AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$AWS_ROLE_ARN" ]]; then
+            echo 'Create the repository Actions variable AWS_ROLE_ARN first.' >&2
+            exit 1
+          fi
+
+      - name: Authenticate to AWS with OIDC
+        # aws-actions/configure-aws-credentials v6.3.0.
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          role-session-name: property-ecr-${{ github.run_id }}-${{ github.run_attempt }}
+          aws-region: ${{ env.AWS_REGION }}
+          allowed-account-ids: '147997138960'
+
+      - name: Log in to ECR
+        run: |
+          set -euo pipefail
+          aws ecr get-login-password --region "$AWS_REGION" |
+            docker login --username AWS --password-stdin "$ECR_REGISTRY"
+
+      - name: Build and push versioned image
+        id: image
+        run: |
+          set -euo pipefail
+          image_tag="sha-${GITHUB_SHA}-run-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          image_uri="${ECR_REPOSITORY_URL}:${image_tag}"
+
+          # Native x86_64 runner and image match the existing t3.micro EC2.
+          docker build --platform linux/amd64 \
+            --file ./code/Dockerfile.ci \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            --label "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY}" \
+            --tag "$image_uri" ./code
+          docker push "$image_uri"
+
+          printf 'image_uri=%s\n' "$image_uri" >> "$GITHUB_OUTPUT"
+          printf '### Published image\n\n`%s`\n\nPlatform: `linux/amd64`\n' \
+            "$image_uri" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Log out of ECR
+        if: always()
+        run: docker logout "$ECR_REGISTRY"
