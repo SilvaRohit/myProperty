@@ -19,7 +19,7 @@
         "drop_original_metrics": ["disk_used_percent"]
       },
       "mem": {
-        "measurement": ["used_percent"],
+        "measurement": ["used_percent"]
       }
     }
   }
