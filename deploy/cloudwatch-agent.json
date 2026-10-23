@@ -20,7 +20,6 @@
       },
       "mem": {
         "measurement": ["used_percent"],
-        "drop_original_metrics": ["mem_used_percent"]
       }
     }
   }
