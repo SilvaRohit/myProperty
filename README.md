@@ -89,7 +89,7 @@ flowchart TB
 
 The workflow does not use an SSH private key. EC2 obtains AWS permissions through its instance role; GitHub uses temporary OIDC credentials.
 
-## 3. Repositories and files
+## 3. Repositories and Files
 
 | Repository | Branch | Responsibility |
 |---|---|---|
