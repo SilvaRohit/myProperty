@@ -57,7 +57,7 @@ export class DocumentService {
             documents = [];
         }
 
-        console.log("Documents: ", documents);
+
 
         return documents;
     }

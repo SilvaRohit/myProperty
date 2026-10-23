@@ -42,7 +42,7 @@ export const POST = processAPIRequest(async ({ request, params }) => {
         endDate: data.endDate
     };
 
-    console.log(data)
+
 
     const rent = await tenantService.rent(tenant);
     return json({

@@ -20,7 +20,7 @@ const tenantService: TenantService = new TenantService(tenantRepository, userSer
 
 export const GET = processAPIRequest(async ({ params }) => {
     const data = params.id;
-    console.log(data);
+
     const res = await tenantService.getTenantById(data);
     return json({status:200, data:res});
 });

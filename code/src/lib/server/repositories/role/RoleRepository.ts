@@ -10,7 +10,7 @@ export class RoleRepository extends Repository<IRole>
     }
 
     async findByName(role: RoleType): Promise<IRole> {
-        console.log("here");
+
         const result = await this.findOne({ where: { name: role } });
         if (!result) {
             throw new Error(`Role with name ${role} not found`);

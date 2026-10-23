@@ -13,7 +13,7 @@ export function processAPIRequest(handler: Function) {
                 message = error.message;
             }
 
-            console.log(error);
+            console.error(JSON.stringify({ event: 'api_request_failed', status }));
             return json(
                 { error: message, status},
                 { status }

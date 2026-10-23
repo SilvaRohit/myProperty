@@ -15,7 +15,7 @@ const service = new MaintenanceRequestService(maintenanceRequestRepository,
 
 export const POST = processAPIRequest(async ({ request }) => {
     const data = await request.json();
-    console.log(data);
+
     const res = await service.createMaintenanceRequest(
         data.userRequestId,
         data.unitId, 

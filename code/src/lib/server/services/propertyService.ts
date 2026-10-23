@@ -38,9 +38,9 @@ export class PropertyService {
         if (!id) {
             throw new UserException("id is required", 400);
         }
-        console.log('PROPERTY_SERVICE_GET_BY_ID_START', id);
+
         const res = await this.propertyRepository.findOne({ where: { id: id } });
-        console.log('PROPERTY_SERVICE_GET_BY_ID_RESULT', !!res, res?.id);
+
         if (!res) {
             throw new UserException("Property not found", 404);
         }

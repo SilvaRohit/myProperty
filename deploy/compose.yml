@@ -2,13 +2,28 @@ services:
   web:
     image: ${APP_IMAGE:?APP_IMAGE must be set}
     restart: unless-stopped
+
     ports:
       - "127.0.0.1:5173:5173"
+
     env_file:
       - /home/ubuntu/myProperty/code/.env
+
     volumes:
       - uploads_data:/app/uploads
       - /home/ubuntu/myProperty/code/certs/global-bundle.pem:/app/certs/global-bundle.pem:ro
+
+    logging:
+      driver: awslogs
+      options:
+        awslogs-region: "ap-southeast-7"
+        awslogs-group: "/tecerotech/property-app/dev"
+        awslogs-create-group: "false"
+        tag: "web/{{.ID}}"
+        mode: "non-blocking"
+        max-buffer-size: "4m"
+        cache-max-size: "10m"
+        cache-max-file: "3"
 
 volumes:
   uploads_data:

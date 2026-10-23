@@ -19,7 +19,7 @@ const propertyService: PropertyService = new PropertyService(propertyRepository)
 //api endpoint to create a new property
 export const POST = processAPIRequest(async ({ request }) => {
     const data = await request.json();
-    console.log(data);
+
     const res = await propertyService.createProperty(data);
     return json({status:200, property:res});
 });
