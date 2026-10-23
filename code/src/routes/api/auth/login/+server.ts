@@ -15,7 +15,6 @@ const service = new UserService(userRepository, roleRepository);
  */
 export const POST = processAPIRequest(async ({ request }) => {
     const data = await request.json();
-    console.log(data);
     const res = await service.authenticate(data.username, data.password);
     return json({status:200, token:res});
 });
