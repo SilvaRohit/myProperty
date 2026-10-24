@@ -2,6 +2,9 @@ Application: [TeceroTech Property](https://github.com/SilvaRohit/myProperty/tree
 
 # TeceroTech-Property — Application and Operations Guide
 
+**Rebuild automation:** [Deployment after an infrastructure rebuild](deploy/REBUILD.md). Once the target parameter is configured, GitHub resolves the current EC2 automatically.
+
+
 A cloud engineering portfolio project that takes an existing property-management application from local Docker testing to an AWS deployment with repeatable releases, rollback, recovery exercises, and monitoring.
 
 The application is adapted from the existing **myProperty** codebase. The portfolio contribution covers AWS infrastructure, deployment automation, operational improvements, and selected application fixes. Preserve the original attribution and [LICENSE](LICENSE), which contains the GNU Affero General Public License v3.
@@ -919,4 +922,3 @@ Keep evidence free of secrets and real tenant data. Preserve upstream attributio
 - [Agent troubleshooting](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/troubleshooting-CloudWatch-Agent.html)
 - [Test alarm state](https://docs.aws.amazon.com/cli/latest/reference/cloudwatch/set-alarm-state.html)
 - [RDS PostgreSQL TLS](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/PostgreSQL.Concepts.General.SSL.html)
-

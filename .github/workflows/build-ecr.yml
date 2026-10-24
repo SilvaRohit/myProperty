@@ -37,6 +37,9 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Test deployment target resolver
+        run: python3 -m unittest discover -s deploy -p 'test_*.py' -v
+
       - name: Check AWS role configuration
         env:
           AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
@@ -55,6 +58,14 @@ jobs:
           role-session-name: property-ecr-${{ github.run_id }}-${{ github.run_attempt }}
           aws-region: ${{ env.AWS_REGION }}
           allowed-account-ids: '147997138960'
+
+      - name: Resolve the current EC2 deployment target
+        if: vars.AUTO_DEPLOY_ENABLED == 'true'
+        id: target
+        env:
+          TARGET_PARAMETER: ${{ vars.EC2_TARGET_PARAMETER }}
+          LEGACY_INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+        run: python3 deploy/resolve-target.py >> "$GITHUB_OUTPUT"
 
       - name: Log in to ECR
         run: |
@@ -87,7 +98,7 @@ jobs:
         if: vars.AUTO_DEPLOY_ENABLED == 'true'
         env:
           IMAGE_URI: ${{ steps.image.outputs.image_uri }}
-          INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+          INSTANCE_ID: ${{ steps.target.outputs.instance_id }}
           DOCUMENT_NAME: ${{ vars.SSM_DEPLOY_DOCUMENT }}
         run: |
           set -euo pipefail
