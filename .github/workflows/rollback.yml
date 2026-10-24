@@ -29,7 +29,6 @@ jobs:
       - name: Check selected branch and repository variables
         env:
           AWS_ROLE_ARN: ${{ vars.AWS_ROLE_ARN }}
-          INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
           DOCUMENT_NAME: ${{ vars.SSM_ROLLBACK_DOCUMENT }}
         run: |
           set -euo pipefail
@@ -38,8 +37,12 @@ jobs:
             exit 1
           fi
           [[ -n "$AWS_ROLE_ARN" ]] || { echo 'AWS_ROLE_ARN is missing.' >&2; exit 1; }
-          [[ "$INSTANCE_ID" =~ ^i-[0-9a-f]{17}$ ]] || { echo 'EC2_INSTANCE_ID is invalid.' >&2; exit 1; }
           [[ "$DOCUMENT_NAME" =~ ^[A-Za-z0-9_.-]{3,128}$ ]] || { echo 'SSM_ROLLBACK_DOCUMENT is missing or invalid.' >&2; exit 1; }
+
+      - name: Check out deployment helpers
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          persist-credentials: false
 
       - name: Authenticate to AWS with existing OIDC role
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd
@@ -49,9 +52,16 @@ jobs:
           aws-region: ap-southeast-7
           allowed-account-ids: '147997138960'
 
+      - name: Resolve the current EC2 deployment target
+        id: target
+        env:
+          TARGET_PARAMETER: ${{ vars.EC2_TARGET_PARAMETER }}
+          LEGACY_INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+        run: python3 deploy/resolve-target.py >> "$GITHUB_OUTPUT"
+
       - name: Roll back to the previous image
         env:
-          INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+          INSTANCE_ID: ${{ steps.target.outputs.instance_id }}
           DOCUMENT_NAME: ${{ vars.SSM_ROLLBACK_DOCUMENT }}
           REQUEST_ID: ${{ github.run_id }}
         run: |
