@@ -2,23 +2,23 @@ Application: [TeceroTech Property](https://github.com/SilvaRohit/myProperty/tree
 
 # TeceroTech-Property — Application and Operations Guide
 
-**Rebuild automation:** [Deployment after an infrastructure rebuild](deploy/REBUILD.md). Once the target parameter is configured, GitHub resolves the current EC2 automatically.
+**Current operations:** [Deployment after an infrastructure rebuild](deploy/REBUILD.md). HCP first-boot automation starts the selected image; later GitHub deployments resolve the current EC2 through Parameter Store.
 
 
 A cloud engineering portfolio project that takes an existing property-management application from local Docker testing to an AWS deployment with repeatable releases, rollback, recovery exercises, and monitoring.
 
 The application is adapted from the existing **myProperty** codebase. The portfolio contribution covers AWS infrastructure, deployment automation, operational improvements, and selected application fixes. Preserve the original attribution and [LICENSE](LICENSE), which contains the GNU Affero General Public License v3.
 
-**Documented:** 23 October 2026  
+**Updated:** 25 October 2026  
 **Application branch:** `aws-deployment`  
-**Source reviewed:** `7d3cd41ad1f2ef5039aeb3b685fbf852707e3c1d`  
 **Application repository:** [SilvaRohit/myProperty](https://github.com/SilvaRohit/myProperty/tree/aws-deployment)  
 **Infrastructure repository:** [SilvaRohit/myProperty-infra](https://github.com/SilvaRohit/myProperty-infra)
 
-Place this guide at the **application repository root as `README.md`**. Commands marked **Mac**, **EC2**, or **PostgreSQL** run in those environments. Replace `YOUR_...` and `REPLACE_...` values before use.
+Commands marked **Mac**, **EC2**, or **PostgreSQL** run in those environments. Replace `YOUR_...` and `REPLACE_...` values before use. Initial manual hosting/adoption sections are historical references; use the rebuild guides for a new Terraform-managed host.
 
 ## Contents
 
+- [Current rebuild and readiness](#current-rebuild-and-readiness)
 - [1. Outcome and scope](#1-outcome-and-scope)
 - [2. Architecture](#2-architecture)
 - [3. Repositories and files](#3-repositories-and-files)
@@ -37,6 +37,24 @@ Place this guide at the **application repository root as `README.md`**. Commands
 - [16. Limitations and deferred work](#16-limitations-and-deferred-work)
 - [17. Evidence and references](#17-evidence-and-references)
 
+## Current rebuild and readiness
+
+Fresh and snapshot-restored website startup is automated by the separate [infrastructure repository](https://github.com/SilvaRohit/myProperty-infra). After choosing recovery inputs, one reviewed HCP apply recreates the primary network, EC2 and RDS. User data installs the runtime, retrieves the configuration secret, starts the pinned ECR image and optionally restores uploaded files.
+
+**Wait for readiness after HCP Applied.** The primary website was recreated during the 24–25 October 2026 lifecycle tests; an initially unavailable site became accessible after first-boot setup. Verify `/opt/property-app-rebuild/completed`, local app/RDS checks and public HTTPS before sending a new GitHub deployment.
+
+| Item | Current behavior |
+|---|---|
+| Initial startup | `initial_image_uri` is pulled and started by infrastructure bootstrap |
+| Later app changes | Existing build/test/deploy workflow on `aws-deployment` |
+| Current EC2 | `EC2_TARGET_PARAMETER=/property-app/dev/deployment/instance-id` |
+| Lab offline | Target is `offline`; workflows fail without using a stale ID |
+| Restored schema | `DATABASE_SYNCHRONIZE=false`; migrations remain deferred |
+| Uploaded files | Active named volume at `/app/uploads`; optional selected S3 archive recovery |
+| New-host rollback | Previous-image history is established by later successful releases |
+
+Keep `AUTO_DEPLOY_ENABLED=true`. HCP approval and readiness checks remain; no dedicated one-click start/stop workflow has been added. The website may deliberately be offline between portfolio demonstrations.
+
 ## 1. Outcome and scope
 
 | Area | Implemented outcome |
@@ -48,12 +66,12 @@ Place this guide at the **application repository root as `README.md`**. Commands
 | Deployment | GitHub OIDC credentials and a constrained Systems Manager command |
 | Rollback | GitHub Actions button restores the previously recorded image |
 | Configuration | Secrets Manager environment retrieval before deployments |
-| Upload persistence | Existing `code_uploads_data` volume mounted at `/app/uploads` |
+| Upload persistence | Named volume at `/app/uploads`; restore can select a new volume |
 | Upload backups | Daily archives and SHA-256 checksums in a private, versioned S3 bucket |
-| Database recovery | Point-in-time restore tested with a separate temporary RDS instance |
+| Database recovery | PITR and snapshot rehearsals; primary website recreated from retained recovery inputs |
 | Monitoring | Disk/memory metrics, EC2/RDS alarms, SNS email, combined dashboard |
 | Application logs | Docker `awslogs` forwarding with seven-day CloudWatch retention |
-| Infrastructure | Separate Terraform repository and HCP Terraform remote state/execution |
+| Infrastructure | Separate Terraform/HCP workspace, retained foundation and automated fresh/restore host setup |
 
 This is a **single-instance learning environment**, not a production-readiness claim. The application still runs the Vite development server. ALB, autoscaling, Multi-AZ database failover, and an independently scheduled HTTPS availability check were not implemented.
 
@@ -76,7 +94,7 @@ flowchart TB
 
 Caddy terminates website TLS and proxies to `127.0.0.1:5173`. Database TLS is a separate connection.
 
-RDS has `PubliclyAccessible=false` and a dedicated security group accepting TCP 5432 from the EC2 application security group. Its retained subnet group contains the original mixed public/private subnet inventory. It was not migrated to a private-subnet-only group.
+RDS has `PubliclyAccessible=false` and a dedicated Terraform-managed SG accepting TCP 5432 from the EC2 app group. Fresh/restore builds use a private-subnet DB group. The original manually created DB used a mixed group, preserved as historical adoption inventory.
 
 ### Release flow
 
@@ -118,10 +136,11 @@ The npm package remains `my-property`; visible project branding is **TeceroTech-
 | `code/docker-compose.yml` | Earlier deployment file pinned to an old ECR image |
 | `code/docker-compose-db-only.yaml` | Historical local DB file; inspect PostgreSQL version/storage before reuse |
 | `deploy/compose.yml` | Git-managed deployment Compose template |
-| `deploy/bootstrap-ec2.sh` | Adopts an already running service |
+| `deploy/bootstrap-ec2.sh` | Legacy adoption helper; the fresh-host installer is in the infra repository |
 | `deploy/deploy.sh` | Repository deployment implementation |
 | `deploy/check-db.mjs` | Verified-TLS PostgreSQL `SELECT 1` preflight |
 | `deploy/request-deploy.py` | Input validation, SSM submission and polling |
+| `deploy/resolve-target.py` | Resolves current EC2 through Parameter Store; configured lookup failures fail closed |
 | `deploy/refresh-env.sh` | Active secret retrieval and environment replacement |
 | `deploy/backup-uploads.sh` | Upload-volume archive and checksum |
 | `deploy/systemd/` | Backup service and timer |
@@ -139,7 +158,7 @@ The npm package remains `my-property`; visible project branding is **TeceroTech-
 | RDS CA certificate | `/home/ubuntu/myProperty/code/certs/global-bundle.pem` |
 | Active deployment runtime | `/opt/property-app-deploy` |
 | Compose project / container | `code` / `code-web-1` |
-| Existing upload volume | `code_uploads_data` |
+| Initial upload volume | `code_uploads_data`; restore may select another volume recorded in `release.env` |
 
 The **Git checkout, installed runtime, and running image are separate**. A Git pull does not itself install scripts or replace a container.
 
@@ -157,6 +176,9 @@ The **Git checkout, installed runtime, and running image are separate**. A Git p
 10. **Recovery:** extend RDS retention, test PITR, schedule S3 upload backups, and recover a sample file.
 11. **Configuration/capacity:** retrieve secrets at deployment and expand the root volume after image downloads exhausted it.
 12. **Monitoring:** implement metrics, alarms, email, dashboard, credential-log cleanup, and centralized application logs.
+13. **Rebuild automation:** module-based lifecycle, automatic fresh EC2 setup and Parameter Store deployment targeting.
+14. **Lifecycle tests:** fresh/snapshot rehearsals, synthetic upload recovery, primary teardown and website recreation.
+15. **Operational lessons:** wait for bootstrap after HCP Applied and use a new final-snapshot name for each teardown.
 
 Selected browser workflows were tested; this was not complete product QA.
 
@@ -283,7 +305,7 @@ DATABASE_PASSWORD=REPLACE_WITH_DATABASE_PASSWORD
 
 DATABASE_SSL=true
 DATABASE_CA_PATH=/app/certs/global-bundle.pem
-DATABASE_SYNCHRONIZE=REPLACE_WITH_INTENDED_TRUE_OR_FALSE
+DATABASE_SYNCHRONIZE=false
 DATABASE_LOGGING=false
 
 JWT_SECRET=REPLACE_WITH_RANDOM_SECRET
@@ -292,7 +314,7 @@ JWT_EXPIRATION_TIME=1h
 
 The code reads these settings explicitly. TLS uses the CA bundle and `rejectUnauthorized: true`. Fix missing certificates/paths rather than disabling verification.
 
-Synchronization was used during setup. The code still has `migrations: []`; a verified migration-based release process was not implemented. The live synchronization setting is protected configuration and was not inspected for this document.
+Infrastructure bootstrap disables synchronization for restored/initialized databases. A fresh, completely empty schema has guarded first-start initialization before synchronization is disabled. The code still has `migrations: []`; this is not a verified migration-based release process.
 
 ### PostgreSQL inspection on EC2
 
@@ -325,7 +347,9 @@ Adding a property/unit inserts a row, not a new table. `\du` shows PostgreSQL ro
 
 ## 7. EC2 setup and HTTPS
 
-Terraform does not currently recreate every host configuration and populate the application in one operation.
+For normal fresh/restore builds, [infrastructure user data](https://github.com/SilvaRohit/myProperty-infra/blob/main/bootstrap/bootstrap-ec2.sh) installs host tools, CA bundle, runtime, Caddy, agent and timer, then starts the selected ECR image. Configure recovery inputs in HCP, apply and wait for bootstrap/HTTPS readiness. Reusing the retained image does not require a new app build.
+
+The SSH/manual examples below describe the original setup and support diagnosis or deliberate legacy adoption. Do not rerun them on a newly bootstrapped host.
 
 ### SSH from the Mac
 
@@ -338,9 +362,9 @@ The Terraform baseline references an existing key pair. Its name is not the priv
 
 SSH TCP 22 was intentionally left open to `0.0.0.0/0`. This guide records that lab choice.
 
-### Host prerequisites
+### Original manual host prerequisites
 
-Install Docker Engine and Compose using Docker's Ubuntu instructions. Verify on EC2:
+The fresh/restore path installs these automatically. For a deliberate legacy host, install Docker Engine and Compose using Docker's Ubuntu instructions. Verify on EC2:
 
 ```bash
 sudo docker version
@@ -400,11 +424,13 @@ Port 443 alone does not install TLS. The Vite allowed host is `property.tecerote
 
 Releases, refreshes, and backups share `deploy.lock`. Secret refresh completes before the deployment script takes its own lock.
 
-### First adoption
+### Legacy first adoption (historical reference)
+
+New Terraform-managed hosts use the infrastructure installer and do not require this adoption procedure.
 
 `deploy/bootstrap-ec2.sh` adopts an **already running healthy** Compose `web` service. It discovers project, image, and volume. It does not install Docker/Caddy or start the first application.
 
-For a fresh disposable rebuild:
+For a deliberate manual first start outside the automated rebuild:
 
 1. Prepare infrastructure, RDS/database/schema, IAM, certificates, environment, and host software.
 2. Build `code/Dockerfile.ci` or select a known ECR image.
@@ -415,7 +441,7 @@ For a fresh disposable rebuild:
 
 Do not mistake the old image pinned in `code/docker-compose.yml` for the current application.
 
-For a new host with the database/schema and protected `code/.env` already prepared, this first-start reference can create the service that bootstrap adopts. Run from `~/myProperty` on EC2:
+Only for that manual path, this reference creates the service the adoption helper expects. It assumes the SQL schema and protected `code/.env` are ready. Run from `~/myProperty` on the deliberately selected EC2:
 
 ```bash
 sudo docker build --file code/Dockerfile.ci \
@@ -444,7 +470,7 @@ sudo docker compose --project-name code \
 curl -I http://127.0.0.1:5173/
 ```
 
-This is a fresh-host reference procedure, not an instruction to recreate the already running lab. The first image is local; successful versioned ECR deployments establish the normal release history.
+This historical reference uses a local first image. The automated rebuild instead starts `initial_image_uri` from ECR and installs its runtime directly; it needs neither this local build nor the adoption helper.
 
 ```bash
 cd ~/myProperty
@@ -505,17 +531,18 @@ Under **Settings → Secrets and variables → Actions → Variables**:
 | Variable | Value |
 |---|---|
 | `AWS_ROLE_ARN` | Application GitHub OIDC role ARN |
-| `EC2_INSTANCE_ID` | Raw EC2 ID without literal quotes or whitespace |
+| `EC2_TARGET_PARAMETER` | `/property-app/dev/deployment/instance-id` — current target |
+| `EC2_INSTANCE_ID` | Legacy fallback only when no target parameter is configured |
 | `SSM_DEPLOY_DOCUMENT` | `property-app-dev-deploy-property-app` |
 | `SSM_ROLLBACK_DOCUMENT` | `property-app-dev-rollback-property-app` |
 | `AUTO_DEPLOY_ENABLED` | `true` |
 
-This deployment path needs no AWS access-key secret or SSH key. Account, region, repository URI, and input regexes are currently lab-specific; another environment must update them consistently.
+With `EC2_TARGET_PARAMETER` configured, missing/unreadable parameters, invalid IDs or `offline` stop the workflow without falling back to the old ID. HCP updates the target on rebuild. Wait for readiness before deployment. This path needs no AWS access-key secret or SSH key. Account, region, repository URI, and input regexes are currently lab-specific; another environment must update them consistently.
 
 ### Build workflow
 
 1. Run on eligible `aws-deployment` pushes affecting `code/**`, `deploy/**`, or the workflow, or on manual dispatch.
-2. Obtain temporary AWS credentials through OIDC.
+2. Obtain temporary AWS credentials through OIDC and resolve the target before building when automatic deployment is enabled.
 3. Log in to ECR.
 4. Build `code/Dockerfile.ci` as `linux/amd64` for the x86_64 EC2.
 5. Run `npm run coverage` inside that image.
@@ -633,14 +660,14 @@ Automatic password rotation and coordinated image-plus-secret version rollback w
 
 Primary storage is the Docker volume, not S3.
 
-`deploy/backup-uploads.sh` writes:
+The installed `/opt/property-app-deploy/backup-uploads.sh` writes:
 
 ```text
 s3://YOUR_BACKUP_BUCKET/uploads/UNIQUE_BACKUP_ID/uploads.tgz
 s3://YOUR_BACKUP_BUCKET/uploads/UNIQUE_BACKUP_ID/uploads.tgz.sha256
 ```
 
-It verifies the existing volume, reuses the local app image, mounts uploads read-only into an isolated container, creates/validates a tar archive, generates SHA-256, uploads both files, and removes temporary files.
+On rebuilt hosts, the infrastructure-installed job resolves `UPLOADS_VOLUME` from the current `release.env` under the deployment lock. It reuses the local app image, mounts the active uploads read-only, creates/validates a tar archive, generates SHA-256, uploads both files and removes temporary files. It continues backing up the restored volume after cutover.
 
 It shares the release lock but does not pause app writes. Database and file backups are not transactionally coordinated.
 
@@ -659,7 +686,7 @@ sudo journalctl -u property-uploads-backup.service -n 50 --no-pager
 sudo /opt/property-app-deploy/backup-uploads.sh
 ```
 
-For a fresh host, install the reviewed files:
+Fresh/restore bootstrap already installs the current job and timer. The following is the **legacy manual installation reference**; do not use it to overwrite a rebuilt host's newer volume-aware script:
 
 ```bash
 sudo install -m 0750 deploy/backup-uploads.sh \
@@ -672,7 +699,7 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now property-uploads-backup.timer
 ```
 
-The script has fixed lab bucket/container/volume names. Review them before using it elsewhere.
+The application's older reference script has fixed bucket/container/volume names. New-host infrastructure assets use the active release volume. Review the installed version before a deliberate host-file rollout.
 
 ### Isolated restore exercise
 
@@ -734,7 +761,7 @@ A separate PITR instance named `property-app-db-restore-test` was checked agains
 | `public.property` | 1 |
 | `public.unit` | 10 |
 
-The app was not redirected to the restored instance. These counts are a basic recovery check, not complete integrity validation or failover. See the infrastructure README for the procedure.
+That original PITR exercise used a separate DB without redirecting the app. Later snapshot rehearsals also returned 1 property and 10 units, and the primary website was subsequently recreated through HCP. These are representative recovery checks, not complete integrity validation or automatic failover. See the infrastructure rebuild guide.
 
 ## 14. Monitoring and logs
 
@@ -883,10 +910,10 @@ The original 8 GiB root volume filled during image pulls. It was expanded to 30 
 - Selected authorization fixes are not a complete security review; registration role selection and user listing require further work.
 - A dedicated least-privilege SQL app user and verified migrations remain future work.
 - The unit route releases its request-scoped runner, while other routes still use module-scope query runners.
-- Docker/Caddy, runtime scripts, metrics config, and systemd jobs include manual/bootstrap installation.
+- Fresh/restore installation of Docker/Caddy, runtime, metrics config and jobs is automated; existing-host file updates still need an explicit rollout.
 - Git changes do not automatically synchronize every installed runtime file.
 - Uploads remain on local Docker storage; S3 is backup storage.
-- Sample recovery tests did not establish complete recovery time or cross-component consistency.
+- Recovery/rebuild exercises succeeded, but counts and a synthetic file do not prove complete integrity, recovery-time objectives or atomic DB/filesystem consistency.
 - SSH remains broadly open by explicit lab choice.
 - Not all host/proxy/database logs are centralized, and no dedicated backup-job failure alarm was added.
 
@@ -901,9 +928,11 @@ Useful portfolio evidence:
 - Rollback and a new run returning to a newer image.
 - HCP speculative plan and approved infrastructure apply.
 - Private RDS access sourced from the application SG.
-- PITR counts and temporary-copy cleanup.
+- PITR/snapshot counts, temporary-copy cleanup, controlled teardown and primary website recreation.
 - Upload checksum and recovered synthetic file.
 - Daily timer plus completed backup run.
+- HCP Applied followed by bootstrap and public HTTPS readiness.
+- New EC2 targeting without editing an instance ID or Compose image.
 - Dashboard metrics, alarm email, and fresh application logs.
 
 Keep evidence free of secrets and real tenant data. Preserve upstream attribution.
